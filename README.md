@@ -51,7 +51,7 @@ python <PATH_TO_IOD>/bin/runiod.py [-options] -in genome.fa
 -in \<PATH\> 	File path to genome of interest (GOI)
 
 #### Optional Arguments & Flags
--MODE	\<where MODE = "tax" or "search"\>   (Optional, Default MODE="tax") Determines the workflow, more on modes below.
+-MODE (Optional, Default MODE="tax") Determines the workflow, MODE = "tax" or "search".
 
 -out \<PATH to output directory\> 	(Optional, Default = “./iod_output/”) Path to file directory to write outputs to. If not specified, a directory is made in the current working directory. If path exists it will be written over.
 
@@ -63,7 +63,7 @@ python <PATH_TO_IOD>/bin/runiod.py [-options] -in genome.fa
 
 -n \<Integer\>	(Optional, Default= 500) Maximum number of attBs to search
 
--seq \<comma separated list OR FILE\> (Optional) AttB sequences to search
+-seq \<comma separated list OR FILE\> (Optional) AttB sequences to search when using "search" mode
 
 #### Modes
 
