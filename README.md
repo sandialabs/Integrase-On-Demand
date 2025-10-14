@@ -35,10 +35,10 @@ conda create -n new_conda_environment python=3.12
 conda activate new_conda_environment
 ```
 ```
-conda install -c bioconda mash
+conda install -c bioconda mash=2.3
 ```
 ```
-conda install -c bioconda blast
+conda install -c bioconda blast=2.16
 ```
 ________________________________________________________________________________ 
 ## III.	USAGE GUIDE
