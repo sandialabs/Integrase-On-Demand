@@ -15,6 +15,14 @@ def build_db(neighbors):
 		for seq,spec in island_dict.items():
 			if any(s in i for i in spec): #if the current taxa (s in neighbor) uses the attB
 				tax_based[seq] = spec
+				#for species,islands in spec.items():
+				#	for island in islands: # parse the islands of this attB to compute island lengths
+				#		coords = [int(match) for match in re.findall(r'[/-]([0-9]+)',island[2])]
+				#		if len(coords) == 4:
+				#			isle_len = abs(coords[0]-coords[1])+ abs(coords[2]-coords[3])
+				#		else:
+				#			isle_len = abs(coords[0]-coords[1])
+				#		length_dict[seq].append(isle_len)
 				if s not in taxonomies: 
 					taxonomies.append(s) #logging which neighbor taxa actually had an attB
 				if len(tax_based) >= max_islands:
@@ -86,7 +94,7 @@ def dedup(hits,islands): # collapses hits by coordinates, using best blast hit a
 		for i in dupes[ref_attb]:
 			if not overlap_island:
 				for (start, end), island in islands.items():
-					if start >= cand[i][0][0] and end <= cand[i][0][-1]:
+					if start > cand[i][0][0] and end < cand[i][0][-1]:
 						cand[i][-1],cand[n][-1] = f"in_{island}","dupe"
 						n,overlap_island=i,True
 						break
@@ -101,7 +109,7 @@ def dedup(hits,islands): # collapses hits by coordinates, using best blast hit a
 				n=i
 			elif hits[n][0:2] != hits[i][0:2] and cand[i][-1] == "cand": # if the current item is worse blast hit than n and is listed as a cand
 				cand[i][-1] = "dupe"
-			elif int(cand[i][-2][0][-2]) > int(cand[n][-2][0][-2]) and cand[i][-1] == "cand": #if the current item has better support and is a cand
+			elif int(cand[i][-2][0][-3]) > int(cand[n][-2][0][-3]) and cand[i][-1] == "cand": #if the current item has better support and is a cand
 				if hits[n][0:2] == hits[i][0:2]: #if the blast hit is the same
 					cand[i][-1], cand[n][-1] = "cand", "dupe"
 					n = i
@@ -109,7 +117,8 @@ def dedup(hits,islands): # collapses hits by coordinates, using best blast hit a
 					cand[i][-1] = "dupe" #better support worse blast hit == dupe
 			if i!=n and cand[i][-1] == "cand":
 				cand[i][-1] = "dupe"
-		if int(cand[n][-2][0][-2]) <= 5:
+		#if int(cand[n][-2][0][-2]) <= 5:
+		if int(cand[n][-2][0][-3]) <= 5:  #v[1].[01].1
 			cand[n][-1] = "low_supp"
 		if cand[n][-1] == "cand":
 			log_dupe[n] = dupes[ref_attb]
@@ -187,27 +196,26 @@ def filterblast(results):
 								islelen, hitcoord = estimate_island_lengths(ls,l,r)
 						else:
 							continue
-						diffs = [int((abs(islelen-a)/(islelen+a))*100) for a in length_dict.get(qacc)]
-						diff=min(diffs)
-						smallest=diffs.index(diff)
+						diff = min([int((abs(islelen-a)/(islelen+a))*100) for a in length_dict.get(qacc)])
 						if diff <= 1:
-							duplicates.append((diff,smallest,hitcoord,l,r))
+							duplicates.append((diff,hitcoord,l,r))
 				if len(duplicates) >= 1:
-					hitcoord = sorted([(i,j,l,r) for h,i,j,l,r in duplicates],key= lambda x: x[0])[0] # best hit by smallest diff
-					i, j, l, r = hitcoord
+					hitcoord = sorted([(j,l,r) for i,j,l,r in duplicates],key= lambda x: x[0])[0] # best hit by smallest diff
+					j, l, r = hitcoord
 					scaf = '/'.join(n[0] for n in j)
 					for n in j:
 						if not n[1] in coordsDQ[n[0]]:
 							coordsDQ[n[0]].append(n[1])
-						filteredseqs[scaf].append((qacc,i,n[0],n[-1],(l,r)))
+						filteredseqs[scaf].append((qacc,n[0],n[-1],(l,r)))
+					remove = True
 				if not remove and len(partial['full']) == 1:
 					passed_first[qacc] = partial['full'][0]
 	return passed_first,filteredseqs
 def main(y_length,s_length,cpus):
 	def get_island_info(key_seq):
 		if all((spec == 'NaN' for spec in island_dict[key_seq])):
-			return ["NaN" for i in range(9)]
-		return sorted((tuple(island[0:3]+island[-3::]) for spec,isle in island_dict[key_seq].items() for island in isle),key= lambda x:int(x[-2]),reverse=True)
+			return ["NaN" for i in range(10)]
+		return sorted((tuple(island[0:3]+island[-4::]) for spec,isle in island_dict[key_seq].items() for island in isle),key= lambda x:int(x[-3]),reverse=True)
 	tax_island_dict = island_dict
 	if tax or attb_search: # make fresh list of query attBs
 		if not attb_search:
@@ -224,7 +232,7 @@ def main(y_length,s_length,cpus):
 	fresh=True
 	if search and not attb_search and y_length==10 and s_length==16:
 		qblast = os.path.join(lib_path,"attbs")
-		fresh =  not os.path.exists(qblast)
+		fresh = not os.path.exists(f"{qblast}.fa")
 	else:
 		qblast = os.path.join(dbdir,"attbs")
 	if fresh:
@@ -245,49 +253,42 @@ def main(y_length,s_length,cpus):
 				for i in def_dict:
 					fa.write(f">{i}/{seq}\n{def_dict[i]}\n")
 					iid.write(f">{i}/{','.join(isleids)}\n{def_dict[i]}\n")
-	count=1
 	for seq,species in tax_island_dict.items():
 		for spec,islands in species.items(): # parse the islands of this attB to compute island lengths
 			for island in islands:
 				coords = [int(match) for match in re.findall(r'[/-]([0-9]+)',island[2])]
-				strand,l,r=island[3].split(';')
-				cross=False
 				if len(coords) == 4:
-					cross=True
-				sizes,halves=[],[l,r]
-				for half in range(2):
-					cval=half*2 if cross else 0
-					if min([coords[0+cval],coords[1+cval]])==1:
-						sizes.append(max([int(i) for i in halves[half].split('-')])-1)
-					else:
-						sizes.append(max([coords[0+cval],coords[1+cval]])-min([int(i) for i in halves[half].split('-')]))
-				length_dict[seq].append(sum(sizes))
+					isle_len = abs(coords[0]-coords[1])+ abs(coords[2]-coords[3])
+				else:
+					isle_len = abs(coords[0]-coords[1])
+				length_dict[seq].append(isle_len)
 	blast_out = runblast(qblast)
 	hits, filteredseqs = filterblast(blast_out)
-	occdupes, specialhits = defaultdict(list), defaultdict(list)
+	occdupes, specialhits = defaultdict(set), defaultdict(list)
 	for u in filteredseqs:
 		for n in filteredseqs[u]:
-			dupe = tuple(sorted([i for i in filteredseqs[u] if len(i[-1]) == 2 and min(i[-2]) <= max(n[-2]) and max(i[-2]) >= min(n[-2])],key= lambda x: (x[-1][0][0:2],x[-1][1][0:2])))
-			if not dupe in occdupes[u]:
-				occdupes[u].append(dupe)
+			dupe = tuple(sorted([i for i in filteredseqs[u] if len(i[3]) == 2 and min(i[2]) <= max(n[2]) and max(i[2]) >= min(n[2])],key= lambda x: (x[3][0][0:2],x[3][1][0:2])))
+			occdupes[u].add(dupe)
 	for ser,reps in occdupes.items():
 		rep, others = [i[0] for i in reps],{i[0][0]:[] for i in reps}
 		for i in reps:
 			others[i[0][0]] += [p[0] for p in i[1::]]
-		front, scoord, count = [], [], 0
-		for keyseq,reisland,contig,isleCoords,blasts in rep: #for each island in the scaffold
+		front, scoord, refseqs, count = [], [], {}, 0
+		for keyseq,contig,isleCoords,blasts in rep: #for each island in the scaffold
 			count += 1
 			front.append(f"{contig}/{'-'.join(str(i) for i in isleCoords)}")
 			scoord += [(i[-1],f"{i[6]}-{i[7]}") for i in blasts]
 			if '/' in ser and count%2 != 0:
 				continue
-			refseqs = get_island_info(keyseq)[reisland]
-			info = ('+'.join((val for val in front)),','.join(f"att{i}:{j}" for i,j in sorted(list(set(scoord)))),','.join([keyseq]+list(refseqs[0:3]+refseqs[-3::])))
+			if len(others[keyseq]) != 0:
+				for otherseq in others[keyseq]:
+					refseqs[otherseq] = get_island_info(otherseq)
+			refseqs[keyseq] = get_island_info(keyseq)
+			info = ('+'.join((val for val in front)),','.join(f"att{i}:{j}" for i,j in sorted(list(set(scoord)))),len(others[keyseq])+1,['\t'.join(','.join(n[0:3]+n[-3::]) for n in j) for i,j in refseqs.items()])
 			if info not in occupied:
 				occupied.append(info)
 			specialhits[isleCoords] = '+'.join((val for val in front))
 			front, scoord, refseqs = [],[],{}
-	passing_special={key: specialhits[key] for key in specialhits if any((item[0]==specialhits[key] for item in occupied))}
 	for key,val in hits.items():
 		gapopen, mismatch, length, sstrand, saccver, slen, sstart, send, sseq, qlen, qaccver, qstart, qend, qseq, idseq = val
 		srange = list(range(sstart-50 if sstart>50 else 0,send+50)) if sstrand == "plus" else list(range(send-50 if send > 50 else 0,sstart+50))
@@ -306,13 +307,16 @@ def main(y_length,s_length,cpus):
 	elif len(cand) == 0:
 		return tax_island_dict, None
 	else:
-		deduped = dedup(hits,passing_special)
+		deduped = dedup(hits,specialhits)
 	for seq in deduped:
 		if len(deduped[seq]) > 1:
 			intisles =';'.join([','.join(i[0:2]) for att in deduped[seq] for i in cand[att][-2]])
-			line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0]))]+[intisles])
+			#old line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0]))]+[intisles])
+			line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0][o] for o in [0,1,2,3,6,5]))]+[intisles]) #v1.[01].1
+
 		else:
-			line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0]))])
+			#old line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0]))])
+			line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0][o] for o in [0,1,2,3,6,5]))]) #v1.[01].1
 		filteredcand.append(line)
 	for seq in cand:
 		cand[seq] = [cand[seq][-1]]+cand[seq][1:5]+['\t'.join([','.join(i) for i in cand[seq][5]])]
@@ -321,9 +325,11 @@ def writeout(attbs,final_cands):
 	print(f"{timesince()}\tWriting files...")
 	def mainout(outfilename,outlist,header=False):
 		with open(os.path.join(output_path,outfilename),'w') as f:
-			f.write(f"query_contig\tstrand\tquery_coord\tquery_attB\tintegrase\tisleID\tref_scaffold/coords\tsource\tsupport\tisle_type\tints,isleIDs\n")
+			#old f.write(f"query_contig\tstrand\tquery_coord\tquery_attB\tintegrase\tisleID\tref_scaffold/coords\tsource\tsupport\tisle_type\tints,isleIDs\n")
+			f.write(f"query_contig\tstrand\tquery_coord\tquery_attB\tintegrase\tisleID\tref_scaffold/coords\tsource\tscore\tisle_type\tints,isleIDs\n") #v[1].[01].1
 			if outlist:
-				f.writelines('\t'.join(list(map(str, line)))+'\n' for line in sorted(outlist,key= lambda x: int(x[2].split('-')[0])))
+				#old f.writelines('\t'.join(list(map(str, line)))+'\n' for line in sorted(outlist,key= lambda x: int(x[2].split('-')[0])))
+				f.writelines('\t'.join(list(map(str, line)))+'\n' for line in sorted(outlist,key= lambda x: int(float(x[4].split('\t')[-2])*100),reverse=True))  #v[1].[01].1
 			print(f"info:\nmode:{"tax" if tax else "search"};input_genome={input_genome};outputpath={output_path};flank_length(tyrosine)={y_length};flank_length(serine)={s_length};reference_file={ref_path}")
 			print(f"summary:\nattBs_in_query={len(attbs)};hit_count={0 if not outlist else len(outlist)};trna_hits={0 if not outlist else sum(1 if re.match(r'[0-9]+\.[0-9]+\.[A-Z]$',i[4].split('\t')[1])  else 0 for i in outlist)};occupied={len(occupied)}")
 		return
@@ -337,10 +343,10 @@ def writeout(attbs,final_cands):
 			f.write(f"{'\t'.join((str(i) for i in cand[attb]))}\n") 
 	mainout('final_candidates.tsv',final_cands)
 	with open(os.path.join(output_path,'occupied.tsv'),'w') as f:
-		f.write("island_coords\tattL_attR\tisleID,ref_scaffold,integrase\n")
+		f.write("island_coords\tattL_attR\toverlapping_atts\tisleID,ref_scaffold,integrase\n")
 		occupied.sort(key= lambda x: (x[0].split('/')[0],int(x[0].split('/')[1].split('-')[0])))
 		for seq in occupied:
-			f.write('\t'.join([str(n) for n in seq])+"\n") #+"\t"+'\t'.join(seq[2])+"\n")
+			f.write('\t'.join([str(n) for n in seq[0:3]])+"\t"+'\t'.join(seq[3])+"\n")
 	print(f"{timesince()}\tDone!")
 	with open(os.path.join(lib_path,"ints.gff"),'r') as f, open(os.path.join(output_path,"ints.gff"),'w') as o:
 		for line in f:
@@ -405,7 +411,7 @@ if __name__=='__main__':
 				if hit:
 					hit = hit.group()
 					island_attbs[key].append(hit)
-		island_dict = {attb:island_dict.get(attb,{"":[[""]*9]}) for attb in island_attbs}|temp
+		island_dict = {attb:island_dict.get(attb,{"":[[""]*10]}) for attb in island_attbs}|temp
 	hits, length_dict, idblocks, refkeys, counthits, cand, integrases, occupied, filteredcand, attbs = defaultdict(list), defaultdict(list), {}, {}, {}, {}, {}, [], [], []
 	attbs, final_cands = main(y_length,s_length,cpus)
 	writeout(attbs,final_cands)
