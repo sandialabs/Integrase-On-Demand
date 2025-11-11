@@ -79,7 +79,7 @@ Search mode is bifunctional. The user can use search mode without specifying any
 ```
 python <PATH>/bin/runiod.py -in genome.fa -out output_folder_name -search
 ```
-In this case, the entire database of sequences (182,734) are searched. Alternatively the user can specify a list of attB sequences to search. The list may be provided as a comma separated list in standard input:
+In this case, the entire database of sequences (182,734) are searched. Alternatively the user can specify a list of attB sequences to search with the additional '-seq' flag. The list may be provided as a comma separated list in standard input:
 ```
 python <PATH>/bin/runiod.py -in genome.fa -out output_folder_name -search -seq attB1,attB2,...,attBn
 ```
@@ -106,6 +106,8 @@ AGCGGTCGCGtccatacGTGTGCGTG
 
 TTAGCGGTGGatccataGTAAGTAAG
 
+NOTE: If providing sequences in search mode, they need not match the above case-formatting (i.e. UPPERCASElowercaseUPPERCASE), where the lowercase portion represents shared sequence between attB and attP (ID-block). Sequences provided are searched for within the attB database in a case-insensitive manner. Search mode will also find all attBs in which a query sequence is found within (i.e **TTAGCGGTGGATCCATAGTAAGTAAG** would hit GTC**TTAGCGGtggatccatagtaAGTAAG**GGA). For a target attachment site with a known ID-block, it is recommended to start search using <10bp-flank>\<ID-block\><10bp-flank>. If an ID-block is not known, try starting with 22-bp sequences.
+
 ### Use-case examples by mode: 
 I.	User wants to develop a system for inserting a genetic element in the genome of a particular organism:
   - Use taxonomic mode to find reference islands in near neighbor genomes. Access final_candidates for list of best attB sites and predicted integrase proteins
@@ -128,7 +130,7 @@ In search mode, the following is also produced:
     5. iod_output/iod_islands.tsv
 
 #### 1. final_candidates.tsv
-Tab seperated file with the following columns:
+Tab seperated file, ranked by each attB's highest scoring source island, with the following columns:
 
 - Contig hit in input genome
 - Direction (plus/minus)
@@ -139,8 +141,9 @@ Tab seperated file with the following columns:
     - IslandID
     - Contig and coordinates of the example reference island
     - Program (TIGER/Islander) source of predicted island
-    - Support value
+    - Score
     - Island type (phage, ICE, etc.)
+- IslandID,Integrase pairs for remaining reference islands
 
 #### 2. isles.json
 Reference genomic island information in json format with the following hierarchy:
@@ -155,7 +158,8 @@ Reference genomic island information in json format with the following hierarchy
                 attP,
                 Source,
                 Support,
-                Island type
+                Island type,
+                Score
     
 
 Note, the IslandID contains the first nine digits are GCA accession and the type of gene the island is integrated in the reference. All t(m)RNA genes are represented by a single letter.
