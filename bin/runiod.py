@@ -102,9 +102,11 @@ def HandleOptionalArgs(flag): #process optional values or set variable to defaul
 for i in defaults:
     HandleOptionalArgs(i)
 runiod_path=sys.argv[0]
-script_path=runiod_path.split("bin")[0]
-if not os.path.exists(f"{script_path}bin/iod.py"):
-   print(f"Exiting. iod.py was not found in {script_path}. Please move iod.py to the same directory as runiod.py({script_path}bin).")
+bin_path=os.path.split(runiod_path)[0]
+iod_path=os.path.join(bin_path,"iod.py")
+lib_path=os.path.join(os.path.split(bin_path)[0],"lib/")
+if not os.path.exists(f"{iod_path}"):
+   print(f"Exiting. iod.py was not found in {bin_path}. Please move iod.py to the same directory as runiod.py({bin_path}).")
    sys.exit()
 if output_path.strip('./') in defaults["-logfile"].split('/'):
     full_log_path=defaults["-logfile"]
@@ -114,8 +116,8 @@ del defaults["-logfile"]
 if os.path.exists(full_log_path):
     os.remove(full_log_path)
 os.system(f"echo 'Running Command: python {' '.join(sys.argv)}' > {full_log_path}")
-os.system(f"echo 'Running Command: python -u {script_path}bin/iod.py {fasta_path} {output_path} {script_path}lib/ {' '.join(list(defaults.values()))} &>> {full_log_path}' >> {full_log_path}")
-os.system(f"python -u {script_path}bin/iod.py {fasta_path} {output_path} {script_path}lib/ {' '.join(list(defaults.values()))} &>> {full_log_path}")
+os.system(f"echo 'Running Command: python -u {iod_path} {fasta_path} {output_path} {lib_path} {' '.join(list(defaults.values()))} &>> {full_log_path}' >> {full_log_path}")
+os.system(f"python -u {iod_path} {fasta_path} {output_path} {lib_path} {' '.join(list(defaults.values()))} &>> {full_log_path}")
 runtime=round(time.time()-start, 2)
 os.system(f"echo 'Runtime={runtime}, Genome size={genomelength}, Rate={genomelength/runtime} bp/s' >> {full_log_path}")
 
