@@ -22,10 +22,12 @@ Note for reviewers: The files needed for integrase on demand to run is available
 
 Script to automate dataset download will be available soon!
 
-Dependencies
+All versions have the following dependencies:
 - python 3.12
 - mash 2.3 (https://github.com/marbl/Mash)
 - BLAST+ 2.16 (https://anaconda.org/bioconda/blast)
+Version 1.1.1 has the following new dependency:
+- python library regex
 
 Make a new conda environment from scratch:
 ```
@@ -39,6 +41,10 @@ conda install -c bioconda mash=2.3
 ```
 ```
 conda install -c bioconda blast=2.16
+```
+For version 1.1.1:
+```
+conda install -c conda-forge regex
 ```
 ________________________________________________________________________________ 
 ## III.	USAGE GUIDE
@@ -64,6 +70,8 @@ python <PATH_TO_IOD>/bin/runiod.py [-options] -in genome.fa
 -n \<Integer\>	(Optional, Default= 500) Maximum number of attBs to search
 
 -seq \<comma separated list OR FILE\> (Optional) AttB sequences to search when using "search" mode
+
+-er \<Integer\> (Optional, Default= 1) Maximum allowable number of substitutions for an sequence provided using "-seq" to match with an attB sequence in the database
 
 #### Modes
 
@@ -106,7 +114,7 @@ AGCGGTCGCGtccatacGTGTGCGTG
 
 TTAGCGGTGGatccataGTAAGTAAG
 
-NOTE: If providing sequences in search mode, they need not match the above case-formatting (i.e. UPPERCASElowercaseUPPERCASE), where the lowercase portion represents shared sequence between attB and attP (ID-block). Sequences provided are searched for within the attB database in a case-insensitive manner. Search mode will also find all attBs in which a query sequence is found within (i.e **TTAGCGGTGGATCCATAGTAAGTAAG** would hit GTC**TTAGCGGtggatccatagtaAGTAAG**GGA). For a target attachment site with a known ID-block, it is recommended to start search using <10bp-flank>\<ID-block\><10bp-flank>. If an ID-block is not known, try starting with 22-bp sequences.
+NOTE: If providing sequences in search mode, they need not match the above case-formatting (i.e. UPPERCASElowercaseUPPERCASE), where the lowercase portion represents shared sequence between attB and attP (ID-block). Sequences provided are searched for within the attB database in a case-insensitive manner. Search mode will also find all attBs in which a query sequence is found within (i.e **TTAGCGGTGGATCCATAGTAAGTAAG** would hit GTC**TTAGCGGtggatccatagtaAGTAAG**GGA). With version 1.1.1, the user may also specify a maximum number of substitutions. For a target attachment site with a known ID-block, it is recommended to start search using <10bp-flank>\<ID-block\><10bp-flank>. If an ID-block is not known, try starting with 22-bp sequences.
 
 ### Use-case examples by mode: 
 I.	User wants to develop a system for inserting a genetic element in the genome of a particular organism:
@@ -190,7 +198,7 @@ GFF formatted entry fir each integrase associated with each attB sequence in fin
 Tab separated file with the following columns:
 - Contig and coordinates
 - attL and attR start-stop (1-based index)
-- Number of reference islands which mapped to this locus
+- Number of reference attBs which mapped to this locus
 - Each reference island on a tab with the following in a comma separated list:
     - Integrase
     - IslandID
