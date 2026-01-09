@@ -1,5 +1,5 @@
 from collections import defaultdict
-import sys,shutil,re,os,time,subprocess,pickle,json,random
+import sys,shutil,re,os,time,subprocess,pickle,json,random,regex
 #############################################################################################################
 def timesince():
 	return time.strftime("%H:%M:%S", time.localtime())
@@ -15,14 +15,6 @@ def build_db(neighbors):
 		for seq,spec in island_dict.items():
 			if any(s in i for i in spec): #if the current taxa (s in neighbor) uses the attB
 				tax_based[seq] = spec
-				#for species,islands in spec.items():
-				#	for island in islands: # parse the islands of this attB to compute island lengths
-				#		coords = [int(match) for match in re.findall(r'[/-]([0-9]+)',island[2])]
-				#		if len(coords) == 4:
-				#			isle_len = abs(coords[0]-coords[1])+ abs(coords[2]-coords[3])
-				#		else:
-				#			isle_len = abs(coords[0]-coords[1])
-				#		length_dict[seq].append(isle_len)
 				if s not in taxonomies: 
 					taxonomies.append(s) #logging which neighbor taxa actually had an attB
 				if len(tax_based) >= max_islands:
@@ -214,8 +206,8 @@ def filterblast(results):
 def main(y_length,s_length,cpus):
 	def get_island_info(key_seq):
 		if all((spec == 'NaN' for spec in island_dict[key_seq])):
-			return ["NaN" for i in range(10)]
-		return sorted((tuple(island[0:3]+island[-4::]) for spec,isle in island_dict[key_seq].items() for island in isle),key= lambda x:int(x[-3]),reverse=True)
+				return [("None","None","None","None","6","None","-31.000")]
+		return sorted((tuple(island[0:3]+island[-4:]) if island[-3] else tuple(island[0:3]+[island[-4],"0"]+island[-2:]) for spec,isle in island_dict[key_seq].items() for island in isle),key= lambda x:int(x[-3]),reverse=True)
 	tax_island_dict = island_dict
 	if tax or attb_search: # make fresh list of query attBs
 		if not attb_search:
@@ -311,11 +303,9 @@ def main(y_length,s_length,cpus):
 	for seq in deduped:
 		if len(deduped[seq]) > 1:
 			intisles =';'.join([','.join(i[0:2]) for att in deduped[seq] for i in cand[att][-2]])
-			#old line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0]))]+[intisles])
 			line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0][o] for o in [0,1,2,3,6,5]))]+[intisles]) #v1.[01].1
 
 		else:
-			#old line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0]))])
 			line = tuple(cand[seq][1:5]+['\t'.join((cand[seq][5][0][o] for o in [0,1,2,3,6,5]))]) #v1.[01].1
 		filteredcand.append(line)
 	for seq in cand:
@@ -325,10 +315,8 @@ def writeout(attbs,final_cands):
 	print(f"{timesince()}\tWriting files...")
 	def mainout(outfilename,outlist,header=False):
 		with open(os.path.join(output_path,outfilename),'w') as f:
-			#old f.write(f"query_contig\tstrand\tquery_coord\tquery_attB\tintegrase\tisleID\tref_scaffold/coords\tsource\tsupport\tisle_type\tints,isleIDs\n")
 			f.write(f"query_contig\tstrand\tquery_coord\tquery_attB\tintegrase\tisleID\tref_scaffold/coords\tsource\tscore\tisle_type\tints,isleIDs\n") #v[1].[01].1
 			if outlist:
-				#old f.writelines('\t'.join(list(map(str, line)))+'\n' for line in sorted(outlist,key= lambda x: int(x[2].split('-')[0])))
 				f.writelines('\t'.join(list(map(str, line)))+'\n' for line in sorted(outlist,key= lambda x: int(float(x[4].split('\t')[-2])*100),reverse=True))  #v[1].[01].1
 			print(f"info:\nmode:{"tax" if tax else "search"};input_genome={input_genome};outputpath={output_path};flank_length(tyrosine)={y_length};flank_length(serine)={s_length};reference_file={ref_path}")
 			print(f"summary:\nattBs_in_query={len(attbs)};hit_count={0 if not outlist else len(outlist)};trna_hits={0 if not outlist else sum(1 if re.match(r'[0-9]+\.[0-9]+\.[A-Z]$',i[4].split('\t')[1])  else 0 for i in outlist)};occupied={len(occupied)}")
@@ -356,13 +344,16 @@ def writeout(attbs,final_cands):
 	return
 if __name__=='__main__':
 	inputs = [int(x) if x.isnumeric() else { "True": True, "False": False , "None": None}.get(x,x) for x in sys.argv[1::]]
-	input_genome, output_path, lib_path, y_length, s_length, cpus, tax,search, attb_search, max_islands=inputs
-	labels = "Genome FASTA,Output Folder,Reference File,Flank Length(Tyrosine),Flank Length(Serine),CPUs,tax,search,query attB,Minimum number of islands (tax-mode only)".split(',')
+	input_genome, output_path, lib_path, y_length, s_length, cpus, tax,search, attb_search, max_islands,errs=inputs
+	labels = "Genome FASTA,Output Folder,Reference File,Flank Length(Tyrosine),Flank Length(Serine),CPUs,tax,search,Query attBs,Minimum number of attBs (tax-mode only),Maximum number of mismatches for a search sequence to match an attB in the database (search mode with -seq flag only)".split(',')
 	param = dict(zip(labels,inputs))
 	for i in param:
-		if search and i == "Minimum number of islands (tax-mode only)":
+		if search and i == "Minimum number of attBs (tax-mode only)":
+			continue
+		if not attb_search and i=="Maximum number of mismatches for a search sequence to match an attB in the database (search mode with -seq flag only)":
 			continue
 		print(i+':',param[i] )
+
 	ref_path = os.path.join(lib_path,"isles.pkl")
 	dbdir = os.path.join(output_path,"blastDB")
 	os.makedirs(dbdir,exist_ok=True)
@@ -401,16 +392,42 @@ if __name__=='__main__':
 					search_attbs = [firstline]+ [line.strip('\n') for line in f.readlines()]
 		else:
 			search_attbs = attb_search.split(',')
-		pattern = "|".join((key for key in search_attbs if key not in island_dict))
-		temp = {attb:island_dict.get(attb) for attb in search_attbs if island_dict.get(attb)}
-		island_attbs = defaultdict(list)
-		if len(pattern) > 0:
-			pattern = re.compile(pattern,re.I)
+		print("Count of attbs: ",len(search_attbs))
+		search_attbs=list(set(search_attbs))
+		print("Count uniq: ",len(search_attbs))
+		temp,options={},[]
+		for search_term in search_attbs:
+			found_island = island_dict.get(search_term)
+			if found_island:
+				temp[search_term]=found_island
+			else:
+				options.append(search_term)
+		print(f"Count of attBs found in island dict with 100% identity: {len(temp)}")
+		island_attbs,within_log = defaultdict(list),set()
+		if len(options) > 0:
+			term="{s<="+f"{errs}"+"}"
+			pattern = regex.compile(rf"(?:\L<bar>){term}", bar=options,flags=re.I|regex.BESTMATCH)
 			for key in island_dict:
-				hit = re.search(pattern,key)
+				hit = regex.search(pattern,key)
 				if hit:
-					hit = hit.group()
-					island_attbs[key].append(hit)
+					match = hit.group()
+					subs,ins,dels=hit.fuzzy_changes
+					if len(subs)==0:
+						og_attb=[attb for attb in search_attbs if match.upper()==attb.upper()] # the same query attB can be found within >1 attb in the database
+						print(f"{attb_search}: {','.join(og_attb)} -> {key}")
+					else:
+						research=key
+						inkey=re.search(match,research,re.I)
+						inkey_beg,inkey_end=inkey.span()
+						if subs:
+							for sub in subs:
+								research=f"{research[:sub] if sub!=0 else str()}.{research[sub+1:] if sub!=len(key) else str()}"
+						og_attb=[attb for attb in search_attbs if regex.search(research[inkey_beg:inkey_end],attb,re.I)]
+						print(f"{attb_search}: {','.join(og_attb)} -> {key}")
+					for att in og_attb:
+						island_attbs[key].append(att)
+						within_log.add(att)
+		print(f"Count of attBs not found directly in island dict, but found within atleast one other attB, with up to {errs} substitutions: {len(within_log)}")
 		island_dict = {attb:island_dict.get(attb,{"":[[""]*10]}) for attb in island_attbs}|temp
 	hits, length_dict, idblocks, refkeys, counthits, cand, integrases, occupied, filteredcand, attbs = defaultdict(list), defaultdict(list), {}, {}, {}, {}, {}, [], [], []
 	attbs, final_cands = main(y_length,s_length,cpus)

@@ -10,6 +10,7 @@ defaults={"-yl":"10",
           "-search" : "False",
           "-seq" : "None",
           "-n": "500",
+          "-er":"2",
           "-logfile": "iod.log"
           }
 
