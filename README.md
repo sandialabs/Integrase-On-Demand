@@ -26,6 +26,7 @@ All versions have the following dependencies:
 - python 3.12
 - mash 2.3 (https://github.com/marbl/Mash)
 - BLAST+ 2.16 (https://anaconda.org/bioconda/blast)
+
 Version 1.1.1 has the following new dependency:
 - python library regex
 
